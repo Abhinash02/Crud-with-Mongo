@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const Item = require("../models/Item");
-const itemController = require('../controllers/itemController');
-// ✅ Fetch All Items
+
+// ✅ Get all items
 router.get("/", async (req, res) => {
   try {
     const items = await Item.find();
@@ -12,28 +12,47 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ Add New Item
+// ✅ Create a new item
 router.post("/", async (req, res) => {
   try {
-    const newItem = new Item({ name: req.body.name });
+    const { name, description } = req.body;
+    if (!name.trim()) return res.status(400).json({ error: "Name is required" });
+
+    const newItem = new Item({ name, description });
     await newItem.save();
-    res.json(newItem);
-  } catch (err) {
-    res.status(400).json({ error: "Failed to add item" });
+
+    res.status(201).json(newItem);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create item" });
   }
 });
 
-// ✅ Delete Item
+// ✅ Update an item
+router.put("/:id", async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    if (!name.trim()) return res.status(400).json({ error: "Name is required" });
+
+    const updatedItem = await Item.findByIdAndUpdate(req.params.id, { name, description }, { new: true });
+
+    if (!updatedItem) return res.status(404).json({ error: "Item not found" });
+
+    res.json(updatedItem);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update item" });
+  }
+});
+
+// ✅ Delete an item
 router.delete("/:id", async (req, res) => {
   try {
-    await Item.findByIdAndDelete(req.params.id);
-    res.json({ message: "Item deleted" });
-  } catch (err) {
+    const deletedItem = await Item.findByIdAndDelete(req.params.id);
+    if (!deletedItem) return res.status(404).json({ error: "Item not found" });
+
+    res.json({ message: "Item deleted successfully" });
+  } catch (error) {
     res.status(500).json({ error: "Delete failed" });
   }
 });
 
-
-// PUT route to update an item
-router.put('/:id', itemController.updateItem);
 module.exports = router;

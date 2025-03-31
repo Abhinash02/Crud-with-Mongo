@@ -6,15 +6,12 @@ const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./db");
 const itemRoutes = require("./routes/itemRoutes");
-// ✅ Connect to MongoDB Atlas
-connectDB();
 
-const app = express();  // Define app here first
-
-const port = 5000;
+const app = express();
+const port = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "your_secret_key";
 
-// ✅ Connect to MongoDB
+// ✅ Connect to MongoDB Atlas
 connectDB();
 
 // ✅ Middleware
@@ -57,13 +54,13 @@ app.post("/login", (req, res) => {
 
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
 
-  res.cookie("token", token, { httpOnly: true, secure: false, sameSite: "strict" });
+  res.cookie("token", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" });
   res.json({ message: "Login successful", role: user.role });
 });
 
 // ✅ Logout Route
 app.post("/logout", (req, res) => {
-  res.clearCookie("token", { path: "/" });
+  res.clearCookie("token");
   res.json({ message: "Logged out successfully" });
 });
 
