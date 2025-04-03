@@ -73,6 +73,13 @@ function Login() {
           >
             Login
           </button>
+          <button
+      type="button"
+      onClick={() => router.push("/signup")}
+      className="w-full p-3 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded transition-all"
+    >
+      Signup
+    </button>
         </form>
       </div>
     </div>

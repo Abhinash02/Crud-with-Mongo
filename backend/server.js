@@ -4,8 +4,10 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
+const bcrypt = require("bcrypt");
 const connectDB = require("./db");
 const itemRoutes = require("./routes/itemRoutes");
+const User = require("./models/user");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -18,12 +20,6 @@ connectDB();
 app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
-
-// ✅ Hardcoded Users with Roles
-const users = [
-  { id: 1, username: "user", password: "123", role: "user" },
-  { id: 2, username: "admin", password: "admin123", role: "admin" }
-];
 
 // ✅ Authentication Middleware
 const authenticateJWT = (req, res, next) => {
@@ -43,19 +39,52 @@ const authorizeRole = (role) => (req, res, next) => {
   next();
 };
 
+// ✅ Signup Route
+app.post("/signup", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: "All fields are required" });
+
+    const existingUser = await User.findOne({ username });
+    if (existingUser) return res.status(400).json({ error: "Username already exists" });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ username, password: hashedPassword });
+    await newUser.save();
+
+    res.status(201).json({ message: "User registered successfully" });
+  } catch (error) {
+    console.error("Signup Error:", error);
+    res.status(500).json({ error: "Signup failed", details: error.message });
+  }
+});
+
 // ✅ Login Route (Sets JWT Cookie)
-app.post("/login", (req, res) => {
-  const { username, password, role } = req.body;
+app.post("/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await User.findOne({ username });
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-  if (!role) return res.status(400).json({ error: "Role is required" });
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
-  const user = users.find((u) => u.username === username && u.password === password && u.role === role);
-  if (!user) return res.status(401).json({ error: "Invalid credentials or role mismatch" });
+    const token = jwt.sign(
+      { id: user._id, username: user.username, role: user.role || "user" },
+      JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
-
-  res.cookie("token", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict" });
-  res.json({ message: "Login successful", role: user.role });
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+    res.json({ message: "Login successful", role: user.role });
+  } catch (error) {
+    console.error("Login Error:", error);
+    res.status(500).json({ error: "Login failed", details: error.message });
+  }
 });
 
 // ✅ Logout Route
@@ -69,7 +98,7 @@ app.get("/admin", authenticateJWT, authorizeRole("admin"), (req, res) => {
   res.json({ message: "Welcome Admin", user: req.user });
 });
 
-app.get("/user", authenticateJWT, authorizeRole("user"), (req, res) => {
+app.get("/user", authenticateJWT, (req, res) => {
   res.json({ message: "Welcome User", user: req.user });
 });
 
@@ -77,7 +106,7 @@ app.get("/protected", authenticateJWT, (req, res) => {
   res.json({ message: "This is a protected route", user: req.user });
 });
 
-// ✅ API Routes
+// ✅ API Routes (CRUD Operations) - No need to add `authenticateJWT` again here, it's handled in `itemRoutes.js`
 app.use("/api/items", itemRoutes);
 
 // ✅ Start Server
